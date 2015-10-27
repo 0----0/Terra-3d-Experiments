@@ -151,7 +151,7 @@ terra SimpleMVoxIter:next()
         var cacheIdx = mortonEncode2(x, y)
         var height: uint
         if z == 0 then
-                height = uint((Perlin.perlin2d(float(x)/64, float(y)/64) + 2)*32)
+                height = uint((Perlin.perlin2d(float(x)/128, float(y)/128) + 2)*64)
                 if self.cachedHeight:size() <= cacheIdx then self.cachedHeight:resize(cacheIdx + 1) end
                 @self.cachedHeight:get(cacheIdx) = height
         else

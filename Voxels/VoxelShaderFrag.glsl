@@ -207,13 +207,13 @@ void main() {
         // gl_FragColor = vec4(texelFetch(nodePool, 0));
         vec4 _p = camera * vec4(0.0, 0.0, 0.0, 1.0);
         vec3 p = vec3(_p) / _p.w;
-        // vec4 _d = camera * vec4(_position.x, 1, _position.y*3/4, 1);
-        vec2 ang = _position;
-        ang.y *= -0.75;
-        ang *= M_PI/2;
-        mat4 pitch = mat4(1,0,0,0, 0,cos(ang.y),-sin(ang.y),0, 0,sin(ang.y),cos(ang.y),0, 0,0,0,1);
-        mat4 yaw = mat4(cos(ang.x),-sin(ang.x),0,0, sin(ang.x),cos(ang.x),0,0, 0,0,1,0, 0,0,0,1);
-        vec4 _d = camera * yaw * pitch * vec4(0,1,0,1);
+        vec4 _d = camera * vec4(_position.x, 1, _position.y*3/4, 1);
+        // vec2 ang = _position;
+        // ang.y *= -0.75;
+        // ang *= M_PI/2;
+        // mat4 pitch = mat4(1,0,0,0, 0,cos(ang.y),-sin(ang.y),0, 0,sin(ang.y),cos(ang.y),0, 0,0,0,1);
+        // mat4 yaw = mat4(cos(ang.x),-sin(ang.x),0,0, sin(ang.x),cos(ang.x),0,0, 0,0,1,0, 0,0,0,1);
+        // vec4 _d = camera * yaw * pitch * vec4(0,1,0,1);
 
         vec3 d = normalize((vec3(_d) / _d.w) - p);
 
