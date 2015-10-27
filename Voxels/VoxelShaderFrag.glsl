@@ -13,7 +13,7 @@ uint getChildrenIdx(uint curNodeIdx) {
         // bool farPtr = bool(bitfieldExtract(curNode, 16, 1));
         bool farPtr = bool(bitfieldExtract(curNode, 0, 1));
         if (farPtr) {
-                return getNode(curNodeIdx + offset);
+                return curNodeIdx + offset + getNode(curNodeIdx + offset);
         }
         else {
                 return curNodeIdx + offset;

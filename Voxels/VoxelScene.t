@@ -8,10 +8,12 @@ local struct PreVoxelOctreeNode {
         childIdxs: uint[8]
         validMask: uint8
         leafMask: uint8
+        subtreeSize: uint
 }
 terra PreVoxelOctreeNode.methods.create()
         var self = PreVoxelOctreeNode {validMask=0, leafMask=0}
         for i=0,8 do self.childIdxs[i] = 0 end
+        self.subtreeSize = 0
         return self
 end
 
@@ -49,11 +51,12 @@ local terra addSubtree(self: &PreVoxelOctree, size: uint, vox: &MVoxIter): bool
                         curNode.leafMask = curNode.leafMask or 1 << i
                 end
         end
+        self.nodePool:get(nodeIdx).subtreeSize = self.nodePool:size() - nodeIdx - 1
         if self.nodePool:get(nodeIdx).leafMask == 0xFF then
-                self.nodePool:remove()
+                if nodeIdx ~= 0 then self.nodePool:remove() end
                 return true
         elseif self.nodePool:get(nodeIdx).validMask == 0 then
-                self.nodePool:remove()
+                if nodeIdx ~= 0 then self.nodePool:remove() end
         end
         return false
 end return addSubtree end)()
@@ -61,7 +64,7 @@ end return addSubtree end)()
 terra PreVoxelOctree:print()
         for i=0,self.nodePool:size() do
                 var node = self.nodePool:get(i)
-                std.print(node.validMask, node.leafMask)
+                std.print(node.validMask, node.leafMask, node.subtreeSize)
                 for j=0,8 do
                         if ((node.validMask ^ node.leafMask) and 1 << j) ~= 0 then
                                 std.printC(j, ": ", node.childIdxs[j], "\n")
@@ -81,11 +84,29 @@ terra VoxelNode:setChildPtr(offset: uint16, far: bool)
         if far then self._childPtr = self._childPtr or 1 end
 end
 
+terra VoxelNode:getChildPtr()
+        return self._childPtr >> 1
+end
+
+terra printBinary(x: uint8)
+        for i=0,8 do
+                if (x and (1 << (8-i-1))) ~= 0 then
+                        std.printC("1")
+                else
+                        std.printC("0")
+                end
+        end
+end
+
+terra VoxelNode:print()
+        printBinary(self.validMask) std.printC("\t") printBinary(self.leafMask) std.printC("\t", self._childPtr >> 1,"\n")
+end
+
 local struct VoxelLeaf {
         rgb: glm.vector(uint8, 4)
 }
 
-local struct NodeOrLeaf {
+local struct NodeOrFarptr {
         union {
                 node: VoxelNode
                 farptr: uint32
@@ -93,12 +114,12 @@ local struct NodeOrLeaf {
 }
 
 local struct VoxelOctree(std.Object) {
-        nodes: std.Vector(NodeOrLeaf)
+        nodes: std.Vector(NodeOrFarptr)
 }
 
 
 
-terra deInterleave(x: uint)
+terra deinterleave(x: uint)
         x = x or (x >> 2)
         x = x and 0xc30c30c3
         x = x or (x >> 4)
@@ -112,9 +133,25 @@ end
 
 terra mortonDecode(m: uint)
         var mask = 0x49249249
-        var x = deInterleave(m and mask)
-        var y = deInterleave((m >> 1) and mask)
-        var z = deInterleave((m >> 2) and mask)
+        var x = deinterleave(m and mask)
+        var y = deinterleave((m >> 1) and mask)
+        var z = deinterleave((m >> 2) and mask)
+        return x, y, z
+end
+
+terra deinterleave(x: uint64)
+        x = (x or  (x >> 2)) and 0x30c30c30c30c30c3
+        x = (x or  (x >> 4)) and 0xf00f00f00f00f00f
+        x = (x or  (x >> 8)) and 0x00ff0000ff0000ff
+        x = (x or (x >> 16)) and 0xffff00000000ffff
+        x = (x or (x >> 32)) and 0x00000000ffffffff
+end
+
+terra mortonDecode(x: uint64)
+        var mask = 0x9249249249249249
+        var x = deinterleave((m >> 0) and mask)
+        var y = deinterleave((m >> 1) and mask)
+        var z = deinterleave((m >> 2) and mask)
         return x, y, z
 end
 
@@ -151,7 +188,7 @@ terra SimpleMVoxIter:next()
         var cacheIdx = mortonEncode2(x, y)
         var height: uint
         if z == 0 then
-                height = uint((Perlin.perlin2d(float(x)/128, float(y)/128) + 2)*64)
+                height = uint((Perlin.perlin2d(float(x)/512, float(y)/512) + 2)*256)
                 if self.cachedHeight:size() <= cacheIdx then self.cachedHeight:resize(cacheIdx + 1) end
                 @self.cachedHeight:get(cacheIdx) = height
         else
@@ -172,29 +209,20 @@ terra VoxelOctree.methods.create(offset: uint)
         var preOct = PreVoxelOctree.salloc()
         var iter = SimpleMVoxIter.salloc()
         iter.offset = offset
-        PreVoxelOctree.addSubtree(SimpleMVoxIter)(preOct, 8, iter)
-        -- -- preOct:print()
+        PreVoxelOctree.addSubtree(SimpleMVoxIter)(preOct, 10, iter)
+        -- preOct:print()
         var fst = preOct.nodePool:get(0)
-        self.nodes:insert(NodeOrLeaf{node=VoxelNode{validMask=fst.validMask, leafMask=fst.leafMask}})
+        self.nodes:insert(NodeOrFarptr{node=VoxelNode{validMask=fst.validMask, leafMask=fst.leafMask}})
+        self.nodes:get(0).node:setChildPtr(1, false)
         self:addSubtree(preOct, 0, 0)
         return self
-end
-
-terra printBinary(x: uint8)
-        for i=0,8 do
-                if (x and (1 << (8-i-1))) ~= 0 then
-                        std.printC("1")
-                else
-                        std.printC("0")
-                end
-        end
 end
 
 terra VoxelOctree:print()
         for i=0,self.nodes:size() do
                 -- std.print(self.nodes:get(i).node.validMask, self.nodes:get(i).node.leafMask, self.nodes:get(i).node._childPtr >> 1)
                 var node = &self.nodes:get(i).node
-                printBinary(node.validMask) std.printC("\t") printBinary(node.leafMask) std.printC("\t", node._childPtr >> 1,"\n")
+                node:print()
         end
 end
 
@@ -205,36 +233,57 @@ terra popCount(x: uint8)
 end
 
 terra VoxelOctree:addSubtree(preOct: &PreVoxelOctree, currPreIdx: uint, currNodeIdx: uint): {}
-        -- std.print(currPreIdx, preOct.nodePool:size(), currNodeIdx, self.nodes:size())
-        var currPreNode = preOct.nodePool:get(currPreIdx)
-
-        var startPos = self.nodes:size()
+        var startPos = self.nodes:size() -- The index of the first child
         var offset = startPos - currNodeIdx;
-        if offset ~= (offset and 0x7FFF) then
-                std.print("Too far - skipping nodes.")
-                std.print("Distance:",offset,"Max:",0x7FFF)
-                var node = &self.nodes:get(currNodeIdx).node
-                node.leafMask = node.validMask
-                -- node.validMask = 0
-                -- node.leafMask = 0
-                return
-        end
-        self.nodes:get(currNodeIdx).node:setChildPtr(offset, false)
+        -- if offset ~= (offset and 0x7fff) then
+        --         std.print("Too far - skipping nodes.")
+        --         std.print("Distance:",offset,"Max:", 0x7fff)
+        --         var node = &self.nodes:get(currNodeIdx).node
+        --         -- std.printC("Current IDX:","\t",currNodeIdx,"\tPointer:")
+        --         std.print("Current node:",currNodeIdx,"Its childIdx:",self:getChildIdx(currNodeIdx),"Us:",startPos)
+        --         node.leafMask = node.validMask
+        --         return
+        -- end
+
+        var currPreNode = preOct.nodePool:get(currPreIdx)
         var validNonLeaves = currPreNode.validMask ^ currPreNode.leafMask
-        -- printBinary(validNonLeaves) std.printC("\n")
         for i=0,8 do
                 if (validNonLeaves and 1 << i) ~= 0 then
-                        -- std.print("inserting")
-                        var node = NodeOrLeaf{node=VoxelNode{
-                                validMask=preOct.nodePool:get(currPreNode.childIdxs[i]).validMask, leafMask=preOct.nodePool:get(currPreNode.childIdxs[i]).leafMask
+                        var currPreChild = preOct.nodePool:get(currPreNode.childIdxs[i])
+                        var node = NodeOrFarptr{node=VoxelNode{
+                                validMask=currPreChild.validMask, leafMask=currPreChild.leafMask
                         }}
                         self.nodes:insert(&node)
                 end
         end
+        var sum: uint = 0
+        var farPtrs = arrayof(uint,0,0,0,0,0,0,0,0)
+        for i=0,8 do if (validNonLeaves and 1 << i) ~= 0 then
+                var numPrevChildren = popCount(validNonLeaves and (not uint8(0)) >> (8-i))
+                var childIdx = startPos + numPrevChildren
+                var offset = sum + self.nodes:size() - childIdx
+                if offset > 0x7fff then
+                        farPtrs[i] = self.nodes:size()
+                        -- self.nodes:get(childIdx).node:setChildPtr(self.nodes:size(), true)
+                        self.nodes:insert(NodeOrFarptr{farptr=0})
+                        goto continue
+                end
+                -- self.nodes:get(childIdx).node:setChildPtr(sum + self.nodes:size() - childIdx, false)
+                sum = sum + preOct.nodePool:get(currPreNode.childIdxs[i]).subtreeSize
+                ::continue::
+        end end
         for i=0,8 do
                 if (validNonLeaves and 1 << i) ~= 0 then
                         var numPrevChildren = popCount(validNonLeaves and (not uint8(0)) >> (8-i))
-                        self:addSubtree(preOct, currPreNode.childIdxs[i], startPos+numPrevChildren)
+                        var childIdx = startPos + numPrevChildren
+
+                        if farPtrs[i] == 0 then
+                                self.nodes:get(childIdx).node:setChildPtr(self.nodes:size() - childIdx, false)
+                        else
+                                self.nodes:get(childIdx).node:setChildPtr(farPtrs[i] - childIdx, true)
+                                self.nodes:get(farPtrs[i]).farptr = self.nodes:size() - farPtrs[i]
+                        end
+                        self:addSubtree(preOct, currPreNode.childIdxs[i], childIdx)
                 end
         end
 end
@@ -243,7 +292,8 @@ terra VoxelOctree:getChildIdx(curNodeIdx: uint)
         var childPtr = self.nodes:get(curNodeIdx).node._childPtr
         var offset = childPtr >> 1
         if (childPtr and 1) ~= 0 then
-                return self.nodes:get(offset + curNodeIdx).farptr
+                var farptrIdx = offset + curNodeIdx
+                return farptrIdx + self.nodes:get(farptrIdx).farptr
         else
                 return offset + curNodeIdx
         end
