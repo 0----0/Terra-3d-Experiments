@@ -140,15 +140,15 @@ terra mortonDecode(m: uint)
 end
 
 terra deinterleave(x: uint64)
-        x = (x or  (x >> 2)) and 0x30c30c30c30c30c3
-        x = (x or  (x >> 4)) and 0xf00f00f00f00f00f
-        x = (x or  (x >> 8)) and 0x00ff0000ff0000ff
-        x = (x or (x >> 16)) and 0xffff00000000ffff
-        x = (x or (x >> 32)) and 0x00000000ffffffff
+        x = (x or  (x >> 2)) and 0x30c30c30c30c30c3L
+        x = (x or  (x >> 4)) and 0xf00f00f00f00f00fL
+        x = (x or  (x >> 8)) and 0x00ff0000ff0000ffL
+        x = (x or (x >> 16)) and 0xffff00000000ffffL
+        x = (x or (x >> 32)) and 0x00000000ffffffffL
 end
 
-terra mortonDecode(x: uint64)
-        var mask = 0x9249249249249249
+terra mortonDecode(m: uint64)
+        var mask = 0x9249249249249249L
         var x = deinterleave((m >> 0) and mask)
         var y = deinterleave((m >> 1) and mask)
         var z = deinterleave((m >> 2) and mask)
