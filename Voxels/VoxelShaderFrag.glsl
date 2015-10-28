@@ -116,7 +116,10 @@ vec3 convertPos(Ray ray, vec3 pos, float scale) {
 
 const uint MAX_STACK_SIZE = 23;
 
-float raycast(vec3 p, vec3 d) {
+uniform float aspectRatio = 3/4;
+uniform float screenWidth = 1024;
+
+float raycast(vec3 p, vec3 d, bool asdf) {
         Ray ray = makeRay(p, d);
 
         uint parentStack[MAX_STACK_SIZE];
@@ -206,6 +209,10 @@ vec4 colorFromRay(vec3 p, vec3 d) {
         return vec4(mix(ambientColor, sunColor, clamp(t2,0,1)) * baseColor.rgb, 1);
 }
 
+vec4 depthColorFromRay(vec3 p, vec3 d) {
+        return vec4(vec3(raycast(p, d)), 1);
+}
+
 #define M_PI 3.1415926535897932384626433832795
 
 uniform mat4 camera;
@@ -225,10 +232,10 @@ void main() {
 
         vec3 d = normalize((vec3(_d) / _d.w) - p);
 
-        vec4 color1 = colorFromRay(p, d);
+        color = colorFromRay(p, d);
+        // vec4 color1 = depthColorFromRay(p, d);
         // _d = camera * vec4(_position.x + 0.5/1024, 1, _position.y * 3/4 + 0.5/768, 1);
         // d = normalize((vec3(_d) / _d.w) - p);
-        // vec4 color2 = colorFromRay(p, d);
+        // vec4 color2 = depthColorFromRay(p, d);
         // color = (color1 + color2)/2;
-        color = color1;
 }

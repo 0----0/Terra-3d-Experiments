@@ -202,7 +202,7 @@ terra SimpleMVoxIter:next()
         var cacheIdx = mortonEncode2(x, y)
         var height: uint
         if z == 0 then
-                height = uint((Perlin.perlin2d(float(x)/128, float(y)/128) + 2)*32)
+                height = uint((Perlin.perlin2d(float(x)/512, float(y)/512) + 2)*256)
                 if self.cachedHeight:size() <= cacheIdx then self.cachedHeight:resize(cacheIdx + 1) end
                 @self.cachedHeight:get(cacheIdx) = height
         else
@@ -223,7 +223,7 @@ terra VoxelOctree.methods.create(offset: uint)
         var preOct = PreVoxelOctree.salloc()
         var iter = SimpleMVoxIter.salloc()
         iter.offset = offset
-        PreVoxelOctree.addSubtree(SimpleMVoxIter)(preOct, 8, iter)
+        PreVoxelOctree.addSubtree(SimpleMVoxIter)(preOct, 10, iter)
         -- preOct:print()
         var fst = preOct.nodePool:get(0)
         self.nodes:insert(NodeOrFarptr{node=VoxelNode{validMask=fst.validMask, leafMask=fst.leafMask}})
