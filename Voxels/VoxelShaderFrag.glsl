@@ -193,9 +193,17 @@ float raycast(vec3 p, vec3 d) {
 }
 
 vec4 colorFromRay(vec3 p, vec3 d) {
-        float t = raycast(p,d);
-        if (t == -1) return vec4(0.3,0.5,0.6,1);
-        else return vec4(vec3(1), 1);
+        vec3 sunColor = vec3(1,0.97,0.87);
+        vec3 ambientColor = vec3(0.1,0.2,0.3);
+        vec3 baseColor = vec3(1);
+
+        float t = raycast(p, d);
+        if (t == -1.0f) { return vec4(sunColor, 1); }
+        vec3 sunDir = normalize(vec3(0.5, 0.5, 0.5));
+        vec3 rayEnd = p + d*t;
+        float t2 = raycast(rayEnd + sunDir * exp2(-20), sunDir);
+        if(t2 == -1) { t2 = 1; }
+        return vec4(mix(ambientColor, sunColor, clamp(t2,0,1)) * baseColor.rgb, 1);
 }
 
 #define M_PI 3.1415926535897932384626433832795
@@ -217,16 +225,10 @@ void main() {
 
         vec3 d = normalize((vec3(_d) / _d.w) - p);
 
-        vec3 sunColor = vec3(1,0.97,0.87);
-        vec3 ambientColor = vec3(0.1,0.2,0.3);
-        vec3 baseColor = vec3(1);
-
-        float t = raycast(p, d);
-        if (t == -1.0f) { color = vec4(sunColor, 1); return; }
-        vec3 sunDir = normalize(vec3(0.5, 0.5, 0.5));
-        vec3 rayEnd = p + d*t;
-        float t2 = raycast(rayEnd + sunDir * exp2(-20), sunDir);
-        if(t2 == -1) { t2 = 1; }
-        // t2 = t2 * (1-0.05) + 0.05;
-        color = vec4(mix(ambientColor, sunColor, clamp(t2,0,1)) * baseColor.rgb, 1);
+        vec4 color1 = colorFromRay(p, d);
+        // _d = camera * vec4(_position.x + 0.5/1024, 1, _position.y * 3/4 + 0.5/768, 1);
+        // d = normalize((vec3(_d) / _d.w) - p);
+        // vec4 color2 = colorFromRay(p, d);
+        // color = (color1 + color2)/2;
+        color = color1;
 }
