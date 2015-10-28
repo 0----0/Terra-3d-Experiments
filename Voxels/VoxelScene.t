@@ -145,6 +145,7 @@ terra deinterleave(x: uint64)
         x = (x or  (x >> 8)) and 0x00ff0000ff0000ffL
         x = (x or (x >> 16)) and 0xffff00000000ffffL
         x = (x or (x >> 32)) and 0x00000000ffffffffL
+        return x
 end
 
 terra mortonDecode(m: uint64)
@@ -167,9 +168,22 @@ terra mortonEncode2(x: uint, y: uint)
         return interleave2(x) or (interleave2(y) << 1)
 end
 
+terra interleave2(x: uint64)
+        x = (x or x << 16) and 0x0000ffff0000ffffL
+        x = (x or x <<  8) and 0x00ff00ff00ff00ffL
+        x = (x or x <<  4) and 0x0f0f0f0f0f0f0f0fL
+        x = (x or x <<  2) and 0x3333333333333333L
+        x = (x or x <<  1) and 0x5555555555555555L
+        return x
+end
+
+terra mortonEncode2(x: uint64, y: uint64)
+        return interleave2(x) or (interleave2(y) << 1)
+end
+
 local struct SimpleMVoxIter(std.Object) {
-        idx: uint
-        offset: uint
+        idx: uint64
+        offset: uint64
         cachedHeight: std.Vector(uint)
 }
 
@@ -209,7 +223,7 @@ terra VoxelOctree.methods.create(offset: uint)
         var preOct = PreVoxelOctree.salloc()
         var iter = SimpleMVoxIter.salloc()
         iter.offset = offset
-        PreVoxelOctree.addSubtree(SimpleMVoxIter)(preOct, 10, iter)
+        PreVoxelOctree.addSubtree(SimpleMVoxIter)(preOct, 11, iter)
         -- preOct:print()
         var fst = preOct.nodePool:get(0)
         self.nodes:insert(NodeOrFarptr{node=VoxelNode{validMask=fst.validMask, leafMask=fst.leafMask}})
