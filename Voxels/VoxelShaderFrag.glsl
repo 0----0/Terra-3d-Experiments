@@ -119,7 +119,7 @@ const uint MAX_STACK_SIZE = 23;
 uniform float aspectRatio = 3/4;
 uniform float screenWidth = 1024;
 
-float raycast(vec3 p, vec3 d, bool asdf) {
+float raycast(vec3 p, vec3 d) {
         Ray ray = makeRay(p, d);
 
         uint parentStack[MAX_STACK_SIZE];
